@@ -138,10 +138,10 @@ func appendQuoted(buf []byte, s string) []byte {
 	return buf
 }
 
-// buildCommonLogLine builds a log entry for req in Apache Common Log Format.
+// BuildCommonLogLine builds a log entry for req in Apache Common Log Format.
 // ts is the timestamp with which the entry should be logged.
 // status and size are used to provide the response HTTP status and size.
-func buildCommonLogLine(req *http.Request, url url.URL, ts time.Time, status int, size int) []byte {
+func BuildCommonLogLine(req *http.Request, url url.URL, ts time.Time, status int, size int) []byte {
 	username := "-"
 	if url.User != nil {
 		if name := url.User.Username(); name != "" {
@@ -182,6 +182,21 @@ func buildCommonLogLine(req *http.Request, url url.URL, ts time.Time, status int
 	buf = append(buf, strconv.Itoa(status)...)
 	buf = append(buf, " "...)
 	buf = append(buf, strconv.Itoa(size)...)
+	buf = append(buf, '\n')
+	return buf
+}
+
+// BuildCombinedLogLine builds a log entry for req in Apache Combined Log Format.
+// ts is the timestamp with which the entry should be logged.
+// status and size are used to provide the response HTTP status and size.
+func BuildCombinedLogLine(req *http.Request, url url.URL, ts time.Time, status int, size int) []byte {
+	buf := BuildCommonLogLine(req, url, ts, status, size)
+	buf = append(buf, ` "`...)
+	buf = appendQuoted(buf, req.Referer())
+	buf = append(buf, `" "`...)
+	buf = appendQuoted(buf, req.UserAgent())
+	buf = append(buf, '"')
+	buf = append(buf, '\n')
 	return buf
 }
 
@@ -189,8 +204,7 @@ func buildCommonLogLine(req *http.Request, url url.URL, ts time.Time, status int
 // ts is the timestamp with which the entry should be logged.
 // status and size are used to provide the response HTTP status and size.
 func writeLog(writer io.Writer, params LogFormatterParams) {
-	buf := buildCommonLogLine(params.Request, params.URL, params.TimeStamp, params.StatusCode, params.Size)
-	buf = append(buf, '\n')
+	buf := BuildCommonLogLine(params.Request, params.URL, params.TimeStamp, params.StatusCode, params.Size)
 	writer.Write(buf)
 }
 
@@ -198,12 +212,7 @@ func writeLog(writer io.Writer, params LogFormatterParams) {
 // ts is the timestamp with which the entry should be logged.
 // status and size are used to provide the response HTTP status and size.
 func writeCombinedLog(writer io.Writer, params LogFormatterParams) {
-	buf := buildCommonLogLine(params.Request, params.URL, params.TimeStamp, params.StatusCode, params.Size)
-	buf = append(buf, ` "`...)
-	buf = appendQuoted(buf, params.Request.Referer())
-	buf = append(buf, `" "`...)
-	buf = appendQuoted(buf, params.Request.UserAgent())
-	buf = append(buf, '"', '\n')
+	buf := BuildCombinedLogLine(params.Request, params.URL, params.TimeStamp, params.StatusCode, params.Size)
 	writer.Write(buf)
 }
 
@@ -226,13 +235,12 @@ func CombinedLoggingHandler(out io.Writer, h http.Handler) http.Handler {
 //
 // Example:
 //
-//  r := mux.NewRouter()
-//  r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-//  	w.Write([]byte("This is a catch-all route"))
-//  })
-//  loggedRouter := handlers.LoggingHandler(os.Stdout, r)
-//  http.ListenAndServe(":1123", loggedRouter)
-//
+//	r := mux.NewRouter()
+//	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+//		w.Write([]byte("This is a catch-all route"))
+//	})
+//	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
+//	http.ListenAndServe(":1123", loggedRouter)
 func LoggingHandler(out io.Writer, h http.Handler) http.Handler {
 	return loggingHandler{out, h, writeLog}
 }
