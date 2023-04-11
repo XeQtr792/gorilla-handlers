@@ -1,4 +1,4 @@
-module github.com/XeQtr792/handlers
+module github.com/XeQtr792/gorilla-handlers
 
 go 1.14
 
